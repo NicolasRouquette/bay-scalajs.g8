@@ -36,16 +36,16 @@ class CustomizedCodeGenerator(val model: m.Model) extends SourceCodeGenerator(mo
           .map(
             c =>
               c.default
-                .map(v => s"${c.name}: ${c.exposedType} = $v")
+                .map(v => s"\${c.name}: \${c.exposedType} = \$v")
                 .getOrElse(
-                  s"${c.name}: ${c.exposedType}"
+                  s"\${c.name}: \${c.exposedType}"
               ))
           .mkString(", ")
 
         val prns = parents.map(" with " + _).mkString("")
 
         s"""
-           |case class $name($args) $prns
+           |case class \$name(\$args) \$prns
              """.stripMargin
       }
     }
@@ -80,7 +80,7 @@ class CustomizedCodeGenerator(val model: m.Model) extends SourceCodeGenerator(mo
       }
 
       override def code =
-        s"""val $name: Rep[$actualType] = column[$actualType]("${model.name}"${options
+        s"""val \$name: Rep[\$actualType] = column[\$actualType]("\${model.name}"\${options
           .filter(_ => !rawType.startsWith("List"))
           .map(", " + _)
           .mkString("")})"""
@@ -91,23 +91,23 @@ class CustomizedCodeGenerator(val model: m.Model) extends SourceCodeGenerator(mo
 
   override def packageCode(profile: String, pkg: String, container: String, parentType: Option[String]): String = {
     s"""
-       |package $pkg
+       |package \$pkg
        |
        |import bay.driver.CustomizedPgDriver
        |import java.time._
        |import io.circe._
-       |import shared.models.slick.${ExtString(container).toCamelCase}._
+       |import shared.models.slick.\${ExtString(container).toCamelCase}._
        |
-       |object $container extends {
+       |object \$container extends {
        |  val profile = bay.driver.CustomizedPgDriver
-       |} with $container
+       |} with \$container
        |
-       |trait $container${parentType.map(t => s" extends $t").getOrElse("")} {
+       |trait \$container\${parentType.map(t => s" extends \$t").getOrElse("")} {
        |
        |  val profile: bay.driver.CustomizedPgDriver
        |  import profile.api._
        |
-       |  ${indent(code.replace("$CONTAINER", container))}
+       |  \${indent(code.replace("\$CONTAINER", container))}
        |
        |}
      """.stripMargin

@@ -45,12 +45,12 @@ object SwaggerCodegen extends App {
       case ("string", Some("date"))      => "LocalDate"
       case ("string", Some("date-time")) => "OffsetDateTime"
       case ("array", _) =>
-        s"List[${property2Scala(p.asInstanceOf[ArrayProperty].getItems, nested = true)}]"
+        s"List[\${property2Scala(p.asInstanceOf[ArrayProperty].getItems, nested = true)}]"
       case _ => "String"
     }
 
     if (p.getRequired || nested) tpe
-    else s"Option[$tpe]"
+    else s"Option[\$tpe]"
   }
 
   swaggers.foreach(e => createForConfig(e._1, e._2))
@@ -59,7 +59,7 @@ object SwaggerCodegen extends App {
     val apiVersion = "v" + swagger.getInfo.getVersion
       .takeWhile(_ != '.')
       .mkString // Semantic versioning, major / minor updates should force a new class
-    println(s"# Codegeneration for Swaggerdoc at [${f.pathAsString}] $apiVersion")
+    println(s"# Codegeneration for Swaggerdoc at [\${f.pathAsString}] \$apiVersion")
 
     /*
     Create Models
@@ -84,9 +84,9 @@ object SwaggerCodegen extends App {
     } {
       val packageName = f.nameWithoutExtension.toLowerCase.takeWhile(_ != '_')
       val routerName = swaggerTag.toUpperCamelCase + "Router"
-      println(s"- Running Codegen for Swagger Tag $swaggerTag")
+      println(s"- Running Codegen for Swagger Tag \$swaggerTag")
       val target =
-        file"server/app/controllers/swagger/$apiVersion/$packageName/$routerName.scala"
+        file"server/app/controllers/swagger/\$apiVersion/\$packageName/\$routerName.scala"
 
       case class RouterCase(routerCase: String, abstractfunc: String)
 
@@ -96,7 +96,7 @@ object SwaggerCodegen extends App {
             .contains(swaggerTag) || (swaggerTag == "default" && e.getTags.isEmpty)))
         .flatMap {
           case (strPath, path) =>
-            println(s"-- Creating Router for $strPath")
+            println(s"-- Creating Router for \$strPath")
 
             val playPath = strPath
               .split('/')
@@ -112,9 +112,9 @@ object SwaggerCodegen extends App {
                         })
                         .flatMap(_.getType)
                         .contains("integer")) {
-                    s"$${int($name)}"
+                    s"\$\${int(\$name)}"
                   } else {
-                    "${" + name + "}"
+                    "\${" + name + "}"
                   }
                 } else e
               }
@@ -139,9 +139,9 @@ object SwaggerCodegen extends App {
                     .filter(_.getIn.toLowerCase == "query")
                     .map { e =>
                       if (e.getRequired) {
-                        s"""q"${e.getName}=$$${e.getName}""""
+                        s"""q"\${e.getName}=\$\$\${e.getName}""""
                       } else {
-                        s"""q_o"${e.getName}=$$${e.getName}""""
+                        s"""q_o"\${e.getName}=\$\$\${e.getName}""""
                       }
                     }
 
@@ -181,7 +181,7 @@ object SwaggerCodegen extends App {
 
                   val body2parser = Map[RequestBodyType, String](
                     NoBody -> "",
-                    JsonBody -> inClassTpe.fold("parse.circe")(e => s"(circe.json[$e])"),
+                    JsonBody -> inClassTpe.fold("parse.circe")(e => s"(circe.json[\$e])"),
                     MultipartBody -> "(parse.multipartFormData)",
                     FileBody -> "(parse.temporaryFile)"
                   ).withDefault(_ => "")
@@ -247,7 +247,7 @@ object SwaggerCodegen extends App {
                     case Some((name, e: _root_.io.swagger.models.auth.ApiKeyAuthDefinition)) =>
                       e.getIn match {
                         case In.HEADER =>
-                          Some(s"""val optApiKey = request.headers.get("${e.getName}")""")
+                          Some(s"""val optApiKey = request.headers.get("\${e.getName}")""")
                         case _ =>
                           None
                       }
@@ -258,14 +258,14 @@ object SwaggerCodegen extends App {
                   val baseQueryParameter =
                     if (queryParameter.isEmpty) ""
                     else {
-                      s" ? ${queryParameter.mkString(" ? ")}"
+                      s" ? \${queryParameter.mkString(" ? ")}"
                     }
 
                   val (queryParameterStr, hasQueryApiKey) = security match {
                     case Some((name, e: _root_.io.swagger.models.auth.ApiKeyAuthDefinition)) =>
                       e.getIn match {
                         case In.QUERY =>
-                          (baseQueryParameter + s""" ? q_o"${e.getName}=$$optApiKey"""", true)
+                          (baseQueryParameter + s""" ? q_o"\${e.getName}=\$\$optApiKey"""", true)
                         case _ =>
                           (baseQueryParameter, false)
                       }
@@ -276,15 +276,15 @@ object SwaggerCodegen extends App {
                   val routerBody = (keyDef, hasQueryApiKey) match {
                     case (Some(keyDefStr), false) =>
                       s"""
-                   |$keyDefStr
+                   |\$keyDefStr
                    |optApiKey match {
                    |  case None => Unauthorized.asFuture
                    |  case Some(apiKey) =>
-                   |    constructResult($methodName(${op.getParameters.toVector
+                   |    constructResult(\$methodName(\${op.getParameters.toVector
                            .filter(e => Seq("query", "path").contains(e.getIn.toLowerCase))
-                           .map(e => s"${e.getName}")
+                           .map(e => s"\${e.getName}")
                            .:+("apiKey")
-                           .mkString(", ")})${if (resultType == "Result") ""
+                           .mkString(", ")})\${if (resultType == "Result") ""
                          else ".map(e => Ok(e.asJson))"})
                    |}
                     """.stripMargin.trim
@@ -293,27 +293,27 @@ object SwaggerCodegen extends App {
                        |optApiKey match {
                        |  case None => Unauthorized.asFuture
                        |  case Some(apiKey) =>
-                       |    constructResult($methodName(${op.getParameters.toVector
+                       |    constructResult(\$methodName(\${op.getParameters.toVector
                            .filter(e => Seq("query", "path").contains(e.getIn.toLowerCase))
-                           .map(e => s"${e.getName}")
+                           .map(e => s"\${e.getName}")
                            .:+("apiKey")
-                           .mkString(", ")})${if (resultType == "Result") ""
+                           .mkString(", ")})\${if (resultType == "Result") ""
                          else ".map(e => Ok(e.asJson))"})
                        |}
                     """.stripMargin.trim
                     case _ =>
                       s"""
-                   |constructResult($methodName(${op.getParameters.toVector
+                   |constructResult(\$methodName(\${op.getParameters.toVector
                            .filter(e => Seq("query", "path").contains(e.getIn.toLowerCase))
-                           .map(e => s"${e.getName}")
-                           .mkString(", ")})${if (resultType == "Result") ""
+                           .map(e => s"\${e.getName}")
+                           .mkString(", ")})\${if (resultType == "Result") ""
                          else ".map(e => Ok(e.asJson))"})
                     """.stripMargin.trim
                   }
 
                   val routerCase = s"""
-               |case ${method.toString}(p"$playPath"$queryParameterStr) => Action.async${body2parser(consumeType)} { implicit request =>
-               |  $routerBody
+               |case \${method.toString}(p"\$playPath"\$queryParameterStr) => Action.async\${body2parser(consumeType)} { implicit request =>
+               |  \$routerBody
                |}
                """.stripMargin
 
@@ -324,9 +324,9 @@ object SwaggerCodegen extends App {
                         if (e.getType.contains("integer")) "Int" else "String"
 
                       if (e.getRequired) {
-                        s"${e.getName}: $tpe"
+                        s"\${e.getName}: \$tpe"
                       } else {
-                        s"${e.getName}: Option[$tpe]"
+                        s"\${e.getName}: Option[\$tpe]"
                       }
                     } ++ (security match { // Add security specific parameters
                     case Some((name, e: _root_.io.swagger.models.auth.ApiKeyAuthDefinition)) =>
@@ -337,15 +337,15 @@ object SwaggerCodegen extends App {
 
                   // Functions to implement
                   val abstractFunc =
-                    s"""def $methodName(${params
-                      .mkString(", ")})(implicit request: Request[${body2content(consumeType)}]): HttpResult[$resultType]"""
+                    s"""def \$methodName(\${params
+                      .mkString(", ")})(implicit request: Request[\${body2content(consumeType)}]): HttpResult[\$resultType]"""
                   RouterCase(routerCase.mkString, abstractFunc)
               }
         }
 
       val template =
         s"""
-         |package controllers.swagger.$apiVersion.$packageName
+         |package controllers.swagger.\$apiVersion.\$packageName
          |
          |import controllers.ExtendedController
          |import io.circe.Json
@@ -357,14 +357,14 @@ object SwaggerCodegen extends App {
          |import play.api.routing._
          |import play.api.routing.sird._
          |import cats.implicits._
-         |import shared.models.swagger.${f.nameWithoutExtension}.$apiVersion._
+         |import shared.models.swagger.\${f.nameWithoutExtension}.\$apiVersion._
          |
-         |trait $routerName extends ExtendedController with SimpleRouter with Circe {
+         |trait \$routerName extends ExtendedController with SimpleRouter with Circe {
          |  def routes: Router.Routes = {
-         |   ${routerCases.map(_.routerCase).mkString}
+         |   \${routerCases.map(_.routerCase).mkString}
          |  }
          |
-         |  ${routerCases.map(_.abstractfunc).mkString("\n")}
+         |  \${routerCases.map(_.abstractfunc).mkString("\n")}
          |}
          |
          """.trim.stripMargin
