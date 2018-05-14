@@ -2,7 +2,7 @@ import sbt.Project.projectToRef
 import Dependencies._
 import com.typesafe.sbt.packager.docker.ExecCmd
 
-name in ThisBuild := """bay-scalajs"""
+name in ThisBuild := """$name$"""
 
 version in ThisBuild := "0.1-SNAPSHOT"
 
@@ -13,7 +13,6 @@ resolvers in ThisBuild ++= Seq(Resolver.bintrayRepo("scalameta", "maven"), Resol
 lazy val web = (project in file("web"))
   .settings(
     scalaJSUseMainModuleInitializer := true,
-    enableReloadWorkflow            := false,
     emitSourceMaps                  := false,
     webpackConfigFile in fullOptJS  := Some(baseDirectory.value / "prod.webpack.config.js"),
     libraryDependencies ++= Seq(
@@ -66,7 +65,7 @@ lazy val server = (project in file("server"))
     libraryDependencies ++= Seq(
       filters,
       jdbc,
-      cache,
+      cacheApi,
       ws,
       "com.github.t3hnar"        %% "scala-bcrypt" % bcrypt,
       "com.typesafe.slick"       %% "slick"        % slick,
@@ -102,9 +101,7 @@ lazy val sharedJVM = shared.jvm
 
 lazy val sharedJS = shared.js
 
-onLoad in Global := (Command
-  .process("project server", _: State))
-  .compose((onLoad in Global).value)
+onLoad in Global ~= (_ andThen ("project server" :: _))
 
 lazy val CodegenCmd = Command.command("codegen") { state =>
   "codegen/run-main app.DbCodegen" ::
